@@ -4,14 +4,16 @@
 
 - 项目：`pi-task-observer`
 - 远程仓库：`https://github.com/stones-hub/pi-task-observer.git`
-- 当前阶段：Gate 2 完整 v0.1 实现及安全窄修已在当前工作区落地；Pi 已独立重跑
-  100 项测试、typecheck、build 和 package smoke；Claude Opus 4.8 独立复审完成；
-  真实 Pi TUI 核心黑盒场景已通过，仍有明确未验证项
+- 当前阶段：v0.1.0 本机候选验收通过，已提交、推送并发布 GitHub Release；Pi 已独立
+  重跑 100 项测试、typecheck、build 和 package smoke；Claude Opus 4.8 独立复审完成；
+  真实 Pi TUI 核心黑盒场景已通过，仍有明确记录的非阻断边界
 - 编码授权：已于 2026-09-11 获得；允许使用 Cursor，模型使用
   `cursor-grok-4.6-high`（用户允许 Grok）
 - commit / push / 发布授权：用户已于当前会话明确授权；计划发布 GitHub `v0.1.0`
   tag/Release。npm 未登录且 package 明确为 `private: true`、`UNLICENSED`，不擅自发布 npm。
-- Git：空仓库克隆后 HEAD 尚未建立；当前变更均为未提交工作区文件
+- Git：发布提交 `cf9583a0c53a61e3c6ad3ee6b376b5c43afe58d0` 已推送到
+  `origin/main`；annotated tag `v0.1.0` 已推送；GitHub Release：
+  `https://github.com/stones-hub/pi-task-observer/releases/tag/v0.1.0`
 
 ## 已确认产品决策
 
@@ -171,5 +173,5 @@ Segment。`one-at-a-time` 逐次交付分别建任务，`all` 一次合并批次
 2. `/resume` 若要求“选择器本身”的可视证据，可再做一次人工/稳健 TUI 选择器操作；核心
    `--session <id>` 恢复 runtime 路径已验证；
 3. 清理临时验收目录前保留本交接中的证据路径；
-4. 当前会话已获得 commit、push 和 GitHub Release 授权；完成后记录固定 SHA、远端分支、
-   tag 和 Release URL。npm 发布因 manifest/认证明确不满足而不执行。
+4. GitHub `v0.1.0` 已发布。当前这次交接状态更新发生在发布提交之后，尚未提交；如需
+   把交接状态也写回远端，必须另做后续提交。npm 发布因 manifest/认证明确不满足而未执行。
