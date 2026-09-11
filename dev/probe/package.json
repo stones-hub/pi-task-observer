@@ -1,0 +1,11 @@
+{
+  "name": "pi-task-observer-gate1-probe",
+  "private": true,
+  "type": "module",
+  "description": "Gate 1 dynamic event probe only. Not the v0.1 product.",
+  "scripts": {
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "analyze": "node --experimental-strip-types analyze.ts",
+    "run": "node --experimental-strip-types run.ts"
+  }
+}

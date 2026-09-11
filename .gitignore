@@ -1,0 +1,13 @@
+node_modules/
+.DS_Store
+*.log
+dist/
+coverage/
+*.tgz
+
+# Gate 1 probe local artifacts (canonical evidence lives under /tmp)
+dev/probe/.tmp/
+dev/probe/evidence/
+
+# Local test repos
+tests/.tmp/
