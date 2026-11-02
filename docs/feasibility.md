@@ -26,7 +26,8 @@ session entry 是否产生任何非预期副作用。
 官方 API 提供：
 
 - `input`，含 `source` 与 `streamingBehavior: steer | followUp | undefined`；
-- `before_agent_start`，含本次 prompt；
+- `before_agent_start`：普通用户输入含本次 prompt；本机 Pi 1.4.0 的 custom 消息
+  触发运行时为 `messageType=custom`，不含 prompt，观察器必须跳过普通输入匹配并兜底；
 - `agent_start`、`agent_end`、`agent_settled`；
 - `turn_start`、`turn_end`；
 - `message_start/update/end`；

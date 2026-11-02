@@ -40,6 +40,7 @@ export class TaskAggregator {
   private pendingFollowUps: PendingInput[] = [];
   private currentRunId?: string;
   private originalUserConsumed = false;
+  private startedWithoutPrompt = false;
   private turn = newTurn();
   private toolsById = new Map<string, { taskId: string; tool: ToolObservation }>();
   private idle = true;
@@ -65,6 +66,7 @@ export class TaskAggregator {
     this.pendingFollowUps = [];
     this.currentRunId = undefined;
     this.originalUserConsumed = false;
+    this.startedWithoutPrompt = false;
     this.turn = newTurn();
     this.toolsById.clear();
     this.idle = !running;
@@ -103,8 +105,14 @@ export class TaskAggregator {
     this.enqueuePending(this.pendingNormals, pending);
   }
 
-  onBeforeAgentStart(prompt: string): void {
+  onBeforeAgentStart(prompt: unknown): void {
+    this.startedWithoutPrompt = false;
     if (this.store.current) return;
+    // custom message triggerTurn 等启动不带普通 prompt：不匹配、不消费 pending，交 agent_start 兜底。
+    if (typeof prompt !== "string") {
+      this.startedWithoutPrompt = true;
+      return;
+    }
     const fp = fingerprint(prompt);
     const matched = this.takePending(this.pendingNormals, fp);
     this.createTask({
@@ -122,13 +130,18 @@ export class TaskAggregator {
     const continuation = Boolean(this.store.current && this.store.current.executionSegments.length > 0);
     this.currentRunId = createId("run");
     this.turn = newTurn();
-    if (!continuation) this.originalUserConsumed = false;
+    const withoutPrompt = this.startedWithoutPrompt;
+    this.startedWithoutPrompt = false;
+    // custom 启动不存在原始 user 消息，首条实际交付的 user 消息只能是 steer/follow-up，不得当原始输入消费。
+    if (!continuation) this.originalUserConsumed = withoutPrompt;
     if (!this.store.current) {
       this.createTask({
         source: "unknown",
         summary: undefined,
         completeness: "partial",
-        reason: "缺少 before_agent_start，已用 agent_start 兜底",
+        reason: withoutPrompt
+          ? "before_agent_start 未携带普通 prompt（如 custom message 触发），已用 agent_start 兜底"
+          : "缺少 before_agent_start，已用 agent_start 兜底",
       });
     }
     const task = this.store.current;

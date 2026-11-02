@@ -84,7 +84,8 @@ export default function piTaskObserver(pi: ExtensionAPI): void {
   });
 
   pi.on("before_agent_start", (event) => {
-    aggregator.onBeforeAgentStart(event.prompt);
+    // 新版 Pi 的 custom message 触发（messageType: "custom"）不带 prompt，原样交聚合器判断。
+    aggregator.onBeforeAgentStart((event as { prompt?: unknown }).prompt);
   });
 
   pi.on("agent_start", () => {

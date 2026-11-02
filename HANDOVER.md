@@ -1,6 +1,52 @@
 # Handover
 
-## 当前阶段
+## 当前修复：custom 消息启动兼容
+
+- 用户本次授权 Claude Code 修复并验证，推理强度 high；不包含 commit、push、发布或
+  更新已安装扩展。当前开发基线为 `187b7b5e3afb7896761c2887521c5a6cb009c4cd`。
+- 根因已通过当前 Pi 1.4.0 的真实 TUI 复现：`sendMessage(..., {triggerTurn:true})`
+  触发 `messageType=custom` 的 `before_agent_start`，无 `prompt`；旧实现直接
+  `fingerprint(undefined)`，在 `boundText` 读取 length 抛错。
+- 候选：聚合器拒绝非字符串 prompt 的指纹匹配，不消费 pending；保留 agent_start
+  的 unknown/partial 兜底，并明确无 prompt 的原因。普通输入和已有任务连续性不变。
+- Pi 已独立检查 diff，重跑 106/106 tests、typecheck、build、package smoke，均通过。
+- 真实 Pi 1.4.0 TUI 加载开发仓库候选，通过本机合成 SSE 服务触发 custom 消息：
+  无 Extension 错误、正常 settled，状态页正确显示不完整原因并可查询已归档历史；
+  `/status` 与 `/status history` 未新增模型请求；随后同一 Session 普通用户输入仍显示
+  `source=interactive`、完整观测并正常结束。无业务外部连接、无真实模型调用。
+- Claude Code 编码已成功返回：实际模型 `claude-opus-5-5`，通过 shim 显式
+  `--effort high`；session `a07eeca5-b072-4b53-ab31-ae901cea7847`。其自报与 Pi 已独立
+  检查的源码 diff 和 106 项测试结果一致。方案文档由 Pi 同步，不是执行器改动。
+- 全新 Claude Code high 只读复审已完成：实际模型 `claude-opus-5-5`，session
+  `7929d1d3-a00d-47f4-948b-b243169ca731`。无 Blocker/High，发现 1 Medium、2 Low。
+  Medium：custom 启动后首条 steer/follow-up 被 consumeOriginal 误当普通输入。
+  Pi 已用实际聚合器复现：follow-up 后仍同一 unknown 任务，历史为 0，摘要误变为
+  follow-up 文本。Claude Code high 已窄修成功，session
+  `99d515d8-70dc-4c0e-851c-be4e69405f4a`，实际模型 `claude-opus-5-5`。
+  非 continuation 且 withoutPrompt 时 originalUserConsumed=true；补队列消费、共享 Run、
+  同文本普通 pending 保留与标记重置覆盖。Pi 已独立检查最终源码/测试 diff，重跑
+  110/110 tests、typecheck、build、package smoke 均通过。
+  Low 测试名称已准确限定并增加重置覆盖；mock 入口边界已用真实 TUI 补充。
+- 窄修后重新真实 Pi 1.4.0 TUI 验证：custom 不报错、普通输入完整观测；custom 后
+  steering 时间线显示“steering 已交付（1 条）”；custom 后 follow-up 产生独立历史
+  任务，source=follow-up、完整观测并复用同一 Execution Run。4 个启动场景共 6 次
+  本机合成模型请求，状态查询无额外请求，无 Extension 错误。测试进程与服务均已停止。
+- 窄修后的全新 Claude Code 只读复核完成：实际模型 `claude-opus-5-5`，session
+  `aa1fc95e-3d7c-4536-a89b-87133709a711`；shim 经 Pi 读取确认显式传入
+  `--effort high`（响应不单独证明服务端实际 effort）。原 Medium 已解决，无
+  Blocker/High/Medium；设计文档已补原始输入消费语义。
+- 本机候选验收通过。剩余非阻断 Low：custom before_agent_start 后无 agent_start，
+  再直接出现缺少 before_agent_start 的异常启动时，标记可能残留，影响原因/摘要。
+  正常 custom、用户输入、steering/follow-up、已有任务连续性均已覆盖；未穷尽
+  Pi 所有异常事件序列，不宣称全面支持 Pi 1.4.0 的所有功能。
+- 本轮临时 TUI、HTTP 服务已退出，测试脚本/日志/执行器证据临时目录已清理；关键
+  测试结果、执行器 session 和剩余边界保留于本交接。
+- Git：用户已单独授权本地 commit，本次修复纳入该提交；未授权 push 或安装更新。
+  提交 SHA 以 `git log -1` 为准。已安装路径仍为旧版本，未部署/未重载用户 Session。
+- 任务书：`.pi/tasks/002-custom-message-start-fix.md`。后续可说“继续 custom 消息兼容
+  修复，先看 HANDOVER”，核对复审与当前 diff 后再申请 Git/安装更新授权。
+
+## 当前阶段（v0.1 发布历史）
 
 - 项目：`pi-task-observer`
 - 远程仓库：`https://github.com/stones-hub/pi-task-observer.git`

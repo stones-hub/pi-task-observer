@@ -411,3 +411,203 @@ test("数千并行 tool_start 有界，tool_end 不误归 follow-up", () => {
   assert.equal(follow?.activeTools.length, 0);
   assert.equal(follow?.finishedTools.some((tool) => tool.toolCallId.startsWith("flood-")), false);
 });
+
+function runCustomTriggered(agg: TaskAggregator, prompt: unknown): void {
+  agg.onBeforeAgentStart(prompt);
+  agg.onAgentStart();
+  agg.onTurnStart(0);
+  agg.onAssistantMessage();
+  agg.onTurnEnd(0);
+  agg.onAgentEnd(["stop"]);
+}
+
+test("custom message 无 prompt 启动：不计算指纹、不消费 pending，agent_start 兜底部分观测并正常归档", () => {
+  const agg = new TaskAggregator();
+  agg.resetSession("sess-1", "/ws", "startup", false);
+  agg.onInput("排队的普通输入", "interactive");
+
+  assert.doesNotThrow(() => agg.onBeforeAgentStart(undefined));
+  assert.equal(agg.snapshotCurrent(), undefined, "before_agent_start 无 prompt 时不应直接建任务");
+  agg.onAgentStart();
+  const during = agg.snapshotCurrent();
+  assert.equal(during?.source, "unknown");
+  assert.equal(during?.promptSummary, undefined);
+  assert.equal(during?.completeness, "partial");
+  assert.ok(during?.completenessReasons.some((reason) => /未携带普通 prompt/.test(reason)));
+  assert.equal(during?.completenessReasons.some((reason) => /缺少 before_agent_start/.test(reason)), false);
+
+  agg.onTurnStart(0);
+  agg.onAssistantMessage();
+  agg.onTurnEnd(0);
+  agg.onAgentEnd(["stop"]);
+  agg.onAgentSettled(true);
+  assert.equal(agg.snapshotCurrent(), undefined);
+  const archived = agg.snapshotHistory()[0];
+  assert.equal(archived?.id, during?.id);
+  assert.equal(archived?.endReason, "settled");
+  assert.equal(archived?.completeness, "partial");
+
+  // pending 普通输入未被 custom 启动误消费，之后仍按原有方式匹配。
+  agg.onBeforeAgentStart("排队的普通输入");
+  agg.onAgentStart();
+  const normal = agg.snapshotCurrent();
+  assert.equal(normal?.source, "interactive");
+  assert.equal(normal?.completeness, "complete");
+  assert.equal(normal?.promptSummary, "排队的普通输入");
+  assert.equal(normal?.completenessReasons.length, 0);
+});
+
+test("before_agent_start 其他非字符串 prompt 一律交 agent_start 兜底且不抛错", () => {
+  for (const prompt of [null, 42, {}, ["x"], Symbol("p")]) {
+    const agg = new TaskAggregator();
+    agg.resetSession("sess-1", "/ws", "startup", false);
+    agg.onInput("保留", "interactive");
+    assert.doesNotThrow(() => runCustomTriggered(agg, prompt));
+    agg.onAgentSettled(true);
+    const archived = agg.snapshotHistory()[0];
+    assert.equal(archived?.source, "unknown");
+    assert.equal(archived?.completeness, "partial");
+    startNormal(agg, "保留");
+    assert.equal(agg.snapshotCurrent()?.completeness, "complete");
+  }
+});
+
+test("空字符串 prompt 仍按普通字符串处理，不视为缺失", () => {
+  const agg = new TaskAggregator();
+  agg.resetSession("sess-1", "/ws", "startup", false);
+  agg.onInput("", "interactive");
+  agg.onBeforeAgentStart("");
+  const task = agg.snapshotCurrent();
+  assert.equal(task?.source, "interactive");
+  assert.equal(task?.completeness, "complete");
+});
+
+test("已有当前任务时无 prompt 的 before_agent_start 保持任务连续性", () => {
+  const agg = new TaskAggregator();
+  agg.resetSession("sess-1", "/ws", "startup", false);
+  startNormal(agg, "进行中的任务");
+  const originalId = agg.snapshotCurrent()?.id;
+  agg.onAgentEnd(["error"], true);
+
+  assert.doesNotThrow(() => agg.onBeforeAgentStart(undefined));
+  agg.onAgentStart();
+  const current = agg.snapshotCurrent();
+  assert.equal(current?.id, originalId);
+  assert.equal(current?.completeness, "complete");
+  assert.equal(current?.executionSegments.length, 2);
+  assert.equal(agg.snapshotHistory().length, 0);
+  agg.onAgentEnd(["stop"]);
+  agg.onAgentSettled(true);
+  assert.equal(agg.snapshotHistory()[0]?.id, originalId);
+  assert.equal(agg.snapshotHistory()[0]?.promptSummary, "进行中的任务");
+});
+
+test("无 prompt 标记经 agent_start 消费后不残留到下一次缺少 before_agent_start 的兜底", () => {
+  const agg = new TaskAggregator();
+  agg.resetSession("sess-1", "/ws", "startup", false);
+  runCustomTriggered(agg, undefined);
+  agg.onAgentSettled(true);
+  agg.onAgentStart();
+  const reasons = agg.snapshotCurrent()?.completenessReasons ?? [];
+  assert.ok(reasons.some((reason) => /缺少 before_agent_start/.test(reason)));
+  assert.equal(reasons.some((reason) => /未携带普通 prompt/.test(reason)), false);
+  // 原始输入消费标记也随之复位：首条 user 消息仍按原始输入记录。
+  agg.onTurnStart(0);
+  agg.onUserMessage("兜底任务的原始输入");
+  agg.onAssistantMessage();
+  assert.equal(agg.snapshotCurrent()?.promptSummary, "兜底任务的原始输入");
+});
+
+test("无 prompt 的 before_agent_start 未到 agent_start 时，后续普通 before_agent_start 重置标记", () => {
+  const agg = new TaskAggregator();
+  agg.resetSession("sess-1", "/ws", "startup", false);
+  agg.onBeforeAgentStart(undefined);
+  assert.equal(agg.snapshotCurrent(), undefined);
+
+  startNormal(agg, "普通任务");
+  const task = agg.snapshotCurrent();
+  assert.equal(task?.source, "interactive");
+  assert.equal(task?.completeness, "complete");
+  assert.equal(task?.completenessReasons.length, 0);
+  assert.equal(task?.promptSummary, "普通任务");
+  assert.ok(task?.timeline.some((event) => event.kind === "input" && event.summary === "普通输入：普通任务"));
+});
+
+test("custom 无 prompt 启动后 steering 消费 steer 队列，不冒充原始输入、不误消费同文本 pending 普通输入", () => {
+  const agg = new TaskAggregator();
+  agg.resetSession("sess-1", "/ws", "startup", false);
+  agg.onInput("同文本", "interactive");
+  agg.onBeforeAgentStart(undefined);
+  agg.onAgentStart();
+  const id = agg.snapshotCurrent()?.id;
+
+  agg.onInput("同文本", "interactive", "steer");
+  deliverUsers(agg, 0, ["同文本"]);
+  const current = agg.snapshotCurrent();
+  assert.equal(current?.id, id);
+  assert.equal(current?.promptSummary, undefined);
+  assert.ok(current?.timeline.some((event) => event.summary === "steering 已交付（1 条）"));
+  assert.equal(current?.timeline.some((event) => event.summary.startsWith("普通输入：")), false);
+
+  // steer 队列已清空：再次出现同文本 user 消息只作为后续输入，不再计为 steering 交付。
+  deliverUsers(agg, 1, ["同文本"]);
+  assert.equal(
+    agg.snapshotCurrent()?.timeline.filter((event) => event.summary === "steering 已交付（1 条）").length,
+    1,
+  );
+
+  agg.onAgentEnd(["stop"]);
+  agg.onAgentSettled(true);
+  assert.equal(agg.snapshotHistory()[0]?.id, id);
+  assert.equal(agg.snapshotHistory()[0]?.promptSummary, undefined);
+
+  // pending 普通输入仍在，后续普通启动可完整匹配。
+  agg.onBeforeAgentStart("同文本");
+  assert.equal(agg.snapshotCurrent()?.source, "interactive");
+  assert.equal(agg.snapshotCurrent()?.completeness, "complete");
+});
+
+test("custom 无 prompt 启动后 follow-up 按实际交付拆新任务并共享 Run，不误消费同文本 pending 普通输入", () => {
+  const agg = new TaskAggregator();
+  agg.resetSession("sess-1", "/ws", "startup", false);
+  agg.onInput("后续一", "interactive");
+  agg.onBeforeAgentStart(undefined);
+  agg.onAgentStart();
+  const custom = agg.snapshotCurrent();
+  const runId = custom?.executionSegments[0]?.runId;
+  assert.ok(runId);
+
+  agg.onInput("后续一", "interactive", "followUp");
+  agg.onInput("后续二", "interactive", "followUp");
+  assert.equal(agg.snapshotCurrent()?.id, custom?.id);
+
+  deliverUsers(agg, 0, ["后续一"]);
+  const first = agg.snapshotCurrent();
+  assert.notEqual(first?.id, custom?.id);
+  assert.equal(first?.source, "follow-up");
+  assert.equal(first?.promptSummary, "后续一");
+  assert.equal(first?.completeness, "complete");
+  assert.equal(first?.executionSegments[0]?.runId, runId);
+  const archived = agg.snapshotHistory()[0];
+  assert.equal(archived?.id, custom?.id);
+  assert.equal(archived?.endReason, "continued-by-follow-up");
+  assert.equal(archived?.promptSummary, undefined);
+  assert.equal(archived?.executionSegments.some((segment) => !segment.endedAt), false);
+
+  deliverUsers(agg, 1, ["后续二"]);
+  const second = agg.snapshotCurrent();
+  assert.notEqual(second?.id, first?.id);
+  assert.equal(second?.source, "follow-up");
+  assert.equal(second?.promptSummary, "后续二");
+  assert.equal(second?.executionSegments[0]?.runId, runId);
+  assert.equal(agg.snapshotHistory().length, 2);
+
+  agg.onAgentEnd(["stop"]);
+  agg.onAgentSettled(true);
+  assert.equal(agg.snapshotHistory()[0]?.id, second?.id);
+  assert.equal(agg.snapshotHistory()[0]?.completeness, "complete");
+
+  agg.onBeforeAgentStart("后续一");
+  assert.equal(agg.snapshotCurrent()?.source, "interactive");
+  assert.equal(agg.snapshotCurrent()?.completeness, "complete");
+});

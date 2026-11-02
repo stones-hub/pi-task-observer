@@ -85,6 +85,13 @@ Extension command 在 `input` 之前被 Pi 分派，因此 `/status` 不会进�
 - 无活跃任务且匹配普通输入：创建任务；
 - 无法匹配：创建 `source=unknown` 的部分观测任务，保留原因。
 
+兼容 custom 消息触发的运行：新版 Pi 的 `before_agent_start` 在
+`messageType=custom` 时没有 `prompt`。非字符串 prompt 不参与指纹匹配、不消费
+pending 普通输入，也不把 custom 内容当成用户输入；已有任务保持连续性，无当前
+任务则由后续 `agent_start` 兜底创建 `source=unknown` 的部分观测任务。
+这类新启动不存在原始 user 消息，因此原始输入消费标记直接置为已消费，首条实际
+交付的 user 消息仍按 steering / follow-up 队列匹配，不能当成原始输入吞掉。
+
 `agent_start` 创建 Execution Run，并为当前任务建立引用该 Run ID 的第一个
 Execution Segment；如果此前缺少 `before_agent_start`，以该事件兜底创建部分观测任务。
 
