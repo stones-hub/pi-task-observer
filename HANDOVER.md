@@ -1,5 +1,19 @@
 # Handover
 
+## 当前发布：v0.1.2 版本一致性
+
+- 用户授权同步包版本、验证、commit、push、创建/推送 `v0.1.2` 并更新本机；旧 tag 不移动。
+- 本次仅将 package.json 和 package-lock.json 本包版本统一到 0.1.2，不更改业务源码。
+  README 加载示例同步到 v0.1.2；不创建 GitHub Release。
+- 执行器 Claude Code，显式 high；任务书 `.pi/tasks/003-version-consistency.md`。
+- Pi 已检查版本 diff：仅 manifest 1 处与 lockfile 2 处本包版本变化，依赖不变，
+  业务源码/测试相对 HEAD 无变化。独立重跑 110/110 tests、typecheck、build、package
+  smoke 通过；额外 npm pack 检查 tarball 内版本为 0.1.2。
+- Claude Code 成功返回：实际模型 `claude-opus-5-5`，session
+  `9910403a-5f7a-468a-8053-83f3100ee803`，显式 `--effort high`；其报告与 Pi
+  独立验证一致。README 与交接记录由 Pi 同步。
+- 本节随 0.1.2 发布提交保存；Git 发布和安装结果以随后核对为准。
+
 ## 当前修复：custom 消息启动兼容
 
 - 用户本次授权 Claude Code 修复并验证，推理强度 high；不包含 commit、push、发布或
@@ -41,8 +55,15 @@
   Pi 所有异常事件序列，不宣称全面支持 Pi 1.4.0 的所有功能。
 - 本轮临时 TUI、HTTP 服务已退出，测试脚本/日志/执行器证据临时目录已清理；关键
   测试结果、执行器 session 和剩余边界保留于本交接。
-- Git：用户已单独授权本地 commit，本次修复纳入该提交；未授权 push 或安装更新。
-  提交 SHA 以 `git log -1` 为准。已安装路径仍为旧版本，未部署/未重载用户 Session。
+- Git：修复提交 `bf328cb19f68ee450dfd6bd7bcda5427e8c462bc` 已获用户授权并推送
+  `origin/main`，通过 ls-remote 核对一致。
+- 用户随后明确授权创建新 tag、推送并按 tag 升级：annotated tag `v0.1.1` 已创建并
+  推送，远端 peeled commit 已核对为 `bf328cb19f68ee450dfd6bd7bcda5427e8c462bc`。
+  未创建 GitHub Release；package.json 的 version 仍为 0.1.0，本次仅创建 Git 发布标签。
+- 本机已通过 `pi install git:github.com/stones-hub/pi-task-observer@v0.1.1` 更新，
+  个人配置最终为 `@v0.1.1`（此前曾固定到修复 SHA）；已安装工作区干净，HEAD 一致。
+  未重载正在运行的用户 Session，以免中断当前任务；当前会话需空闲后 `/reload`，
+  或退出重开 Pi 才加载新代码。本段部署结果在修复提交之后更新，尚未另行提交。
 - 任务书：`.pi/tasks/002-custom-message-start-fix.md`。后续可说“继续 custom 消息兼容
   修复，先看 HANDOVER”，核对复审与当前 diff 后再申请 Git/安装更新授权。
 

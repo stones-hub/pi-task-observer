@@ -9,10 +9,10 @@ Extension。加载后自动旁路观察当前 Session 中的用户任务，通�
 
 ## 安装与加载
 
-从 GitHub Release 临时加载指定版本：
+从 Git 标签临时加载指定版本：
 
 ```text
-pi -e git:github.com/stones-hub/pi-task-observer@v0.1.0
+pi -e git:github.com/stones-hub/pi-task-observer@v0.1.2
 ```
 
 也可以从本地源码目录加载：
